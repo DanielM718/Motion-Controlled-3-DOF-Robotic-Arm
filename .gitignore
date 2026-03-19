@@ -1,0 +1,16 @@
+# anim for debug purposes
+anim.h
+anim.cpp
+
+# OS generated files 
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# VS code generated files
+.vscode
+build/
