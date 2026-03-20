@@ -14,3 +14,4 @@ Thumbs.db
 # VS code generated files
 .vscode
 build/
+models/
