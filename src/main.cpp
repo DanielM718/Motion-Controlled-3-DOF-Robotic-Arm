@@ -1,13 +1,16 @@
 #include <iostream>
 #include <sstream>
 #include <string>
-#include <vector>
 #include <cstdio>
+#include <random>
+#include <cmath>
+#include <chrono>
 
+#include <data_types/vector.h>
+#include <robot/controls.h>
 
-
-int main() {
-    std::cout.setf(std::ios::unitbuf);
+int python_pipeline(){
+    
     FILE* pipe = popen("python3 scripts/vision.py 2>/dev/null", "r");
     if (!pipe) {
         std::cerr << "Failed to open pipe to Python process\n";
@@ -97,6 +100,41 @@ int main() {
 
     int status = pclose(pipe);
     std::cout << "Python process exited with status: " << status << "\n";
+}
 
+int main() {
+    std::cout.setf(std::ios::unitbuf);
+    //python_pipeline();
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<double> dist_angle(0.0, 2*M_PI);
+    std::uniform_real_distribution<double> dist_radius(0.0, 1.0);
+
+    double R = 2.0;
+    control_unit* arm_control = new control_unit();
+
+    using clock = std::chrono::steady_clock;
+    auto last_update = clock::now();
+
+    while(true){
+        auto now = clock::now();
+        
+        if(now - last_update >= std::chrono::seconds(3)){
+            last_update = now;
+
+            double theta = dist_angle(gen);
+            double r = R * std::sqrt(dist_radius(gen));
+
+            double x = r * std::cos(theta);
+            double y = r * std::sin(theta);
+            std::cout << "!x: " << x << ", y: " << y << std::endl;
+            arm_control->controls(vector(x, y, 0));
+            animFlush();
+        }
+        
+    }
+
+    
+    
     return 0;
 }
