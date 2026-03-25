@@ -20,11 +20,13 @@ class control_unit {
         joint* getBase();
         joint* getShoulder();
         joint* getElbow();
+        joint* getWrist();
 
     private:
         joint* base;
         joint* shoulder;
         joint* elbow;
+        joint* wrist;
 };
 
 #endif
