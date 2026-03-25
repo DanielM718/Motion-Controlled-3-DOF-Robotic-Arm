@@ -129,8 +129,18 @@ int main() {
             double y = r * std::sin(theta);
             std::cout << "!x: " << x << ", y: " << y << std::endl;
             arm_control->controls(vector(x, y, 0));
-            animFlush();
+                // debug
+
         }
+        setColor(0, 255, 0);
+        drawSphere(vector(0,0,0), 0.1);
+        drawLine(arm_control->getBase()->getPos(), arm_control->getElbow()->getPos());
+        setColor(255, 255, 255);
+        drawSphere(arm_control->getElbow()->getPos(), 0.1);
+        drawLine(arm_control->getElbow()->getPos(), arm_control->TARGET_POS);
+        setColor(255, 0, 0);
+        drawSphere(arm_control->TARGET_POS, 0.1);
+        animFlush();
         
     }
 
