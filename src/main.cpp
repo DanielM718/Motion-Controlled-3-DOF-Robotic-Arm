@@ -78,11 +78,11 @@ int python_pipeline(){
                 float z = std::stof(fields[i + 3]);
 
                 if (name == "WRIST") {
-                    // std::cout << "WRIST -> x = " << x
-                    //           << ", y = " << y
-                    //           << ", z = " << z << "\n";
-                    //std::cout << "c " << x << " " << y << " 0.5" << "\n";
-                    //std::cout << "F\n";
+                    std::cout << "WRIST -> x = " << x
+                              << ", y = " << y
+                              << ", z = " << z << "\n";
+                    std::cout << "c " << x << " " << y << " 0.5" << "\n";
+                    std::cout << "F\n";
                     found_wrist = true;
                     break;
                 }
@@ -102,9 +102,8 @@ int python_pipeline(){
     std::cout << "Python process exited with status: " << status << "\n";
 }
 
-int main() {
-    std::cout.setf(std::ios::unitbuf);
-    //python_pipeline();
+int arm_tests(){
+
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_real_distribution<double> dist_angle(0.0, 2*M_PI);
@@ -127,7 +126,7 @@ int main() {
 
             double x = r * std::cos(theta);
             double y = r * std::sin(theta);
-            std::cout << "!x: " << x << ", y: " << y << std::endl;
+            std::cout << "!target x: " << x << ", y: " << y << std::endl;
             arm_control->controls(vector(x, y, 0));
             // debug
 
@@ -144,6 +143,12 @@ int main() {
         
     }
 
+}
+
+int main() {
+    std::cout.setf(std::ios::unitbuf);
+    //python_pipeline();
+    arm_tests();
     
     
     return 0;
