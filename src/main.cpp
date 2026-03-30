@@ -11,7 +11,7 @@
 
 int python_pipeline(){
     
-    FILE* pipe = popen("python3 scripts/vision.py 2>/dev/null", "r");
+    FILE* pipe = popen("python3 -u scripts/vision.py 2>/dev/null", "r");
     if (!pipe) {
         std::cerr << "Failed to open pipe to Python process\n";
         return 1;
@@ -22,7 +22,6 @@ int python_pipeline(){
     while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
         std::string line(buffer);
 
-        // Remove trailing newline
         if (!line.empty() && line.back() == '\n') {
             line.pop_back();
         }
@@ -31,66 +30,31 @@ int python_pipeline(){
             continue;
         }
 
-        // Ignore NO_HAND lines
         if (line == "NO_HAND") {
-            //std::cout << "No hand detected\n";
             continue;
         }
 
-        // Split CSV line by commas
-        std::vector<std::string> fields;
         std::stringstream ss(line);
-        std::string item;
+        std::string name, x_str, y_str;
 
-        while (std::getline(ss, item, ',')) {
-            fields.push_back(item);
-        }
-
-        // Expected format:
-        // HAND,timestamp,handedness,score,
-        // NAME,x,y,z,
-        // NAME,x,y,z,...
-        if (fields.size() < 8 || fields[0] != "HAND") {
+        if (!std::getline(ss, name, ',') ||
+            !std::getline(ss, x_str, ',') ||
+            !std::getline(ss, y_str, ',')) {
             std::cerr << "bad line: " << line << "\n";
             continue;
         }
 
-        std::string timestamp  = fields[1];
-        std::string handedness = fields[2];
-        std::string score_str  = fields[3];
+        if (name != "WRIST") {
+            std::cerr << "bad line: " << line << "\n";
+            continue;
+        }
 
         try {
-            float score = std::stof(score_str);
+            float x = std::stof(x_str);
+            float y = std::stof(y_str);
 
-            // std::cout << "timestamp = " << timestamp
-            //           << ", handedness = " << handedness
-            //           << ", score = " << score << "\n";
-
-            // Landmark records begin at index 4 in groups of 4:
-            // [name, x, y, z]
-            bool found_wrist = false;
-
-            for (size_t i = 4; i + 3 < fields.size(); i += 4) {
-                const std::string& name = fields[i];
-
-                float x = std::stof(fields[i + 1]);
-                float y = std::stof(fields[i + 2]);
-                //float z = std::stof(fields[i + 3]);
-
-                if (name == "WRIST") {
-                    std::cout << "!VISION_WRIST -> x = " << x
-                              << ", y = " << y;
-                              //<< ", z = " << z << "\n";
-                    //std::cout << "c " << x << " " << y << " 0.5" << "\n";
-                    //std::cout << "F\n";
-                    found_wrist = true;
-                    break;
-                }
-            }
-
-            if (!found_wrist) {
-                //std::cerr << "WRIST not found in line: " << line << "\n";
-            }
+            std::cout << "!VISION_WRIST -> x = " << x
+                      << ", y = " << y << "\n";
 
         } catch (const std::exception& e) {
             std::cerr << "parse error: " << e.what()
@@ -100,6 +64,7 @@ int python_pipeline(){
 
     int status = pclose(pipe);
     std::cout << "Python process exited with status: " << status << "\n";
+    return status;
 }
 
 int arm_tests(){
@@ -147,8 +112,8 @@ int arm_tests(){
 
 int main() {
     std::cout.setf(std::ios::unitbuf);
-    //python_pipeline();
-    arm_tests();
+    python_pipeline();
+    //arm_tests();
     
     
     return 0;

@@ -159,11 +159,11 @@ while True:
             cv2.putText(frame, gesture, (10, h - 40),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.9, gesture_color, 2)
 
-            print(f"WRIST,{col},{row}")
+            print(f"WRIST,{col},{row}\n")
 
     else:
         wrist_angle_history.clear()
-        print("NO_HAND")
+        print("NO_HAND\n")
         
 
     cv2.imshow('Hand Tracking', frame)
