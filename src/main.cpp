@@ -47,7 +47,7 @@ int arm_tests(){
     setColor(255, 0, 0);
     drawSphere(arm_control->getWrist()->getPos(), 0.1);
     animFlush();
-        
+    return 1;
 
 }
 
