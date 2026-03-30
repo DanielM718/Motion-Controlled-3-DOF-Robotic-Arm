@@ -9,6 +9,8 @@ control_unit::control_unit(){
     shoulder = new joint(vector(0.0, 0.0, 0.0), 0.0f, 0.0f, 180.0f);
     elbow = new joint(vector(0.0, ARM_LENGTH, 0.0), 0.0f, 0.0f, 180.0f);
     wrist = new joint(vector(0.0, ARM_LENGTH*2, 0.0), 0.0f, 0.0f, 180.0f);
+
+    robot = new serial_sender("-/dev/ttyAMC0");
 }
 
 int control_unit::base_control(){
@@ -64,6 +66,7 @@ void control_unit::controls(const vector NEW_TARGET_POS){
     vector wrist_pos = wrist->getPos();
     printf("!wrist x: %f y: %f, z: %f\n", wrist_pos.x, wrist_pos.y, wrist_pos.z);
     
+    robot->send_angles(base_target, shoulder_target, elbow_target, 180, 180);
 }   
 
 joint* control_unit::getBase(){

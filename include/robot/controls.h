@@ -3,6 +3,7 @@
 
 #include "data_types/vector.h"
 #include "robot/joint.h"
+#include "robot/serial_sender.h"
 
 #include "anim/anim.h"
 #include <cmath>
@@ -27,6 +28,8 @@ class control_unit {
         joint* shoulder;
         joint* elbow;
         joint* wrist;
+
+        serial_sender* robot;
 };
 
 #endif

@@ -31,7 +31,7 @@ serial_sender::serial_sender(const std::string& port, speed_t baud)
 
     usleep(2000000); // Arduino resets on DTR — wait 2s
     open_ = true;
-    fprintf(stderr, "[serial] Opened %s @ %d\n", port.c_str(), baud);
+    fprintf(stderr, "[serial] Opened %s @ %lu\n", port.c_str(), baud);
 }
 
 serial_sender::~serial_sender() { if (fd_ >= 0) ::close(fd_); }
