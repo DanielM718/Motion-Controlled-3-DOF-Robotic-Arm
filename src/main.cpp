@@ -9,10 +9,6 @@
 #include <data_types/vector.h>
 #include <robot/controls.h>
 
-void arm_control(){
-    arm_tests();
-}
-
 int arm_tests(){
 
     std::random_device rd;
@@ -54,6 +50,10 @@ int arm_tests(){
         
     }
 
+}
+
+void arm_control(){
+    arm_tests();
 }
 
 int python_pipeline(){
