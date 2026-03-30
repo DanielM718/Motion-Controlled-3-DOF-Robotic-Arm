@@ -51,7 +51,7 @@ int python_pipeline(){
         // NAME,x,y,z,
         // NAME,x,y,z,...
         if (fields.size() < 8 || fields[0] != "HAND") {
-            //std::cerr << "bad line: " << line << "\n";
+            std::cerr << "bad line: " << line << "\n";
             continue;
         }
 
@@ -75,14 +75,14 @@ int python_pipeline(){
 
                 float x = std::stof(fields[i + 1]);
                 float y = std::stof(fields[i + 2]);
-                float z = std::stof(fields[i + 3]);
+                //float z = std::stof(fields[i + 3]);
 
                 if (name == "WRIST") {
-                    std::cout << "WRIST -> x = " << x
-                              << ", y = " << y
-                              << ", z = " << z << "\n";
-                    std::cout << "c " << x << " " << y << " 0.5" << "\n";
-                    std::cout << "F\n";
+                    std::cout << "!VISION_WRIST -> x = " << x
+                              << ", y = " << y;
+                              //<< ", z = " << z << "\n";
+                    //std::cout << "c " << x << " " << y << " 0.5" << "\n";
+                    //std::cout << "F\n";
                     found_wrist = true;
                     break;
                 }
