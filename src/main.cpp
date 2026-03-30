@@ -20,6 +20,7 @@ int python_pipeline(){
     char buffer[4096];
 
     while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+        arm_control();
         std::string line(buffer);
 
         if (!line.empty() && line.back() == '\n') {
@@ -65,6 +66,10 @@ int python_pipeline(){
     int status = pclose(pipe);
     std::cout << "Python process exited with status: " << status << "\n";
     return status;
+}
+
+void arm_control(){
+    arm_tests();
 }
 
 int arm_tests(){
@@ -113,7 +118,7 @@ int arm_tests(){
 int main() {
     std::cout.setf(std::ios::unitbuf);
     python_pipeline();
-    //arm_tests();
+    //
     
     
     return 0;
