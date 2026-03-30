@@ -38,15 +38,15 @@ int arm_tests(){
         // debug
 
     }
-    setColor(0, 255, 0);
-    drawSphere(vector(0,0,0), 0.1);
-    drawLine(arm_control->getBase()->getPos(), arm_control->getElbow()->getPos());
-    setColor(255, 255, 255);
-    drawSphere(arm_control->getElbow()->getPos(), 0.1);
-    drawLine(arm_control->getElbow()->getPos(), arm_control->TARGET_POS);
-    setColor(255, 0, 0);
-    drawSphere(arm_control->getWrist()->getPos(), 0.1);
-    animFlush();
+    // setColor(0, 255, 0);
+    // drawSphere(vector(0,0,0), 0.1);
+    // drawLine(arm_control->getBase()->getPos(), arm_control->getElbow()->getPos());
+    // setColor(255, 255, 255);
+    // drawSphere(arm_control->getElbow()->getPos(), 0.1);
+    // drawLine(arm_control->getElbow()->getPos(), arm_control->TARGET_POS);
+    // setColor(255, 0, 0);
+    // drawSphere(arm_control->getWrist()->getPos(), 0.1);
+    // animFlush();
     return 1;
 
 }
