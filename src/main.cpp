@@ -9,6 +9,33 @@
 #include <data_types/vector.h>
 #include <robot/controls.h>
 
+control_unit arm_control_unit;
+
+constexpr int GRID_W = 41;
+constexpr int GRID_H = 41;
+
+constexpr double FRAME_W = 640.0;
+constexpr double FRAME_H = 480.0;
+
+constexpr double ARM_LENGTH = 1.0; // 1 m
+constexpr double R = 2.0 * ARM_LENGTH;
+
+vector grid_to_world(int gx, int gy) {
+    // normalize grid → [-0.5, 0.5]
+    double u = (static_cast<double>(gx) / (GRID_W - 1)) - 0.5;
+    double v = (static_cast<double>(gy) / (GRID_H - 1)) - 0.5;
+
+    // world rectangle (aspect-correct)
+    double world_h = 2.0 * R;
+    double world_w = world_h * (FRAME_W / FRAME_H);
+
+    // map to world coords
+    double x = u * world_w;
+    double y = -v * world_h; // flip y (image down → world up)
+
+    return vector(x, y, 0);
+}
+
 int arm_tests(){
 
     std::random_device rd;
@@ -17,7 +44,6 @@ int arm_tests(){
     std::uniform_real_distribution<double> dist_radius(0.0, 1.0);
 
     double R = 2.0;
-    control_unit* arm_control = new control_unit();
 
     using clock = std::chrono::steady_clock;
     auto last_update = clock::now();
@@ -34,7 +60,7 @@ int arm_tests(){
         double x = r * std::cos(theta);
         double y = r * std::sin(theta);
         std::cout << "!target x: " << x << ", y: " << y << std::endl;
-        arm_control->controls(vector(x, y, 0));
+        arm_control_unit.controls(vector(x, y, 0));
         // debug
 
     }
@@ -51,8 +77,20 @@ int arm_tests(){
 
 }
 
-void arm_control(){
-    arm_tests();
+void arm_control(float x, float y){
+    //arm_tests();
+    vector next_target_pos = grid_to_world(x, y);
+    arm_control_unit.controls(next_target_pos);
+    
+    setColor(0, 255, 0);
+    drawSphere(vector(0,0,0), 0.1);
+    drawLine(arm_control_unit.getBase()->getPos(), arm_control_unit.getElbow()->getPos());
+    setColor(255, 255, 255);
+    drawSphere(arm_control_unit.getElbow()->getPos(), 0.1);
+    drawLine(arm_control_unit.getElbow()->getPos(), arm_control_unit.TARGET_POS);
+    setColor(255, 0, 0);
+    drawSphere(arm_control_unit.getWrist()->getPos(), 0.1);
+    animFlush();
 }
 
 int python_pipeline(){
@@ -66,7 +104,7 @@ int python_pipeline(){
     char buffer[4096];
 
     while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
-        arm_control();
+        
         std::string line(buffer);
 
         if (!line.empty() && line.back() == '\n') {
@@ -102,6 +140,8 @@ int python_pipeline(){
 
             std::cout << "!VISION_WRIST -> x = " << x
                       << ", y = " << y << "\n";
+            
+            arm_control(x, y);
 
         } catch (const std::exception& e) {
             std::cerr << "parse error: " << e.what()

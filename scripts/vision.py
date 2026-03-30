@@ -19,7 +19,7 @@ cap = cv2.VideoCapture(0)
 
 wrist_angle_history = deque(maxlen=10)
 
-GRID_SIZE = 20
+GRID_SIZE = 41
 
 FINGER_TIPS =    [8, 12, 16, 20]
 FINGER_KNUCKLES= [6, 10, 14, 18]
