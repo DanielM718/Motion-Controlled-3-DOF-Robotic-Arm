@@ -102,15 +102,12 @@ while True:
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     results = hands.process(rgb)
 
-    # FPS
     curr_time = time.time()
     fps = 1 / (curr_time - prev_time) if prev_time else 0
     prev_time = curr_time
 
-    # Draw grid
     cell_w, cell_h = draw_grid(frame, GRID_SIZE, GRID_SIZE)
 
-    # FPS top left
     cv2.putText(frame, f'FPS: {int(fps)}', (10, 30),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,255,0), 2)
 
@@ -129,16 +126,11 @@ while True:
             facing = get_palm_facing(lm, handedness)
             finger_states = get_finger_states(lm, handedness, facing)
 
-            angle = get_wrist_angle(lm)
-            wrist_angle_history.append(angle)
-
             gesture = "OPEN" if is_open_hand(finger_states, lm) else "CLOSED"
             gesture_color = (0,255,0) if gesture == "OPEN" else (0,0,255)
 
-            # Grid position
             col, row = get_grid_position(wrist.x, wrist.y)
 
-            # Highlight current cell
             cell_x1 = (col - 1) * cell_w
             cell_y1 = (row - 1) * cell_h
             cell_x2 = col * cell_w
@@ -146,20 +138,18 @@ while True:
             cv2.rectangle(frame, (cell_x1, cell_y1), (cell_x2, cell_y2),
                          (0,255,255), 2)
 
-            # Wrist dot
             cv2.circle(frame, (wx, wy), 8, (0,0,255), -1)
 
-            # Info display bottom left
             cv2.putText(frame, f'{display_hand} Hand', (10, h - 130),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255,255,0), 2)
             cv2.putText(frame, f'Grid: ({col}, {row})', (10, h - 100),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,255,255), 2)
-            cv2.putText(frame, f'Angle: {int(angle)} deg', (10, h - 70),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255,165,0), 2)
             cv2.putText(frame, gesture, (10, h - 40),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.9, gesture_color, 2)
 
             print(f"WRIST,{col},{row}\n")
+            pinch = 0 if gesture == "OPEN" else 1
+            print(f"WRIST,{col},{row}\nPINCH,{pinch}\n")
 
     else:
         wrist_angle_history.clear()
