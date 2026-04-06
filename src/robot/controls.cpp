@@ -10,7 +10,7 @@ control_unit::control_unit(){
     elbow = new joint(vector(0.0, ARM_LENGTH, 0.0), 0.0f, 0.0f, 180.0f);
     wrist = new joint(vector(0.0, ARM_LENGTH*2, 0.0), 0.0f, 0.0f, 180.0f);
 
-    robot = new serial_sender("-/dev/ttyAMC0");
+    robot = new serial_sender("/dev/tty.usbmodem2101");
 }
 
 int control_unit::base_control(){
@@ -19,6 +19,7 @@ int control_unit::base_control(){
     const float y = TARGET_POS.y;
     float rad = std::atan2(y, x);
     float degree = rad * (180*M_1_PI); // convert to degree
+    degree += 180;
     return static_cast<int>(degree);
 }
 
@@ -64,9 +65,10 @@ void control_unit::controls(const vector NEW_TARGET_POS){
     int elbow_target = elbow_control();
 
     vector wrist_pos = wrist->getPos();
-    printf("!wrist x: %f y: %f, z: %f\n", wrist_pos.x, wrist_pos.y, wrist_pos.z);
-    
-    robot->send_angles(base_target, shoulder_target, elbow_target, 180, 180);
+    //printf("!wrist x: %f y: %f, z: %f\n", wrist_pos.x, wrist_pos.y, wrist_pos.z);
+    printf("!angles base: %d shoulder: %d elbow: %d\n", base_target, 180 - shoulder_target, 100 + elbow_target);
+    //robot->send_angles(base_target, shoulder_target, elbow_target, 180, 180);
+    robot->send_angles(base_target, 180 - shoulder_target, 120 + elbow_target, 180, 180);
 }   
 
 joint* control_unit::getBase(){

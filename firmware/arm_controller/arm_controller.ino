@@ -3,7 +3,7 @@
 #define DXL_SERIAL Serial1
 #define DIR_PIN    -1  // OpenRB-150: automatic
 
-#define NUM_JOINTS 5
+#define NUM_JOINTS 3//5
 
 static const uint8_t ids[NUM_JOINTS] = { 1, 2, 3, 4, 5 };
 
