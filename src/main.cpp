@@ -129,19 +129,21 @@ int python_pipeline(){
             continue;
         }
 
-        if (name != "WRIST") {
-            std::cerr << "bad line: " << line << "\n";
-            continue;
-        }
-
         try {
-            float x = std::stof(x_str);
-            float y = std::stof(y_str);
+            if(name == "WRIST"){
+                float x = std::stof(x_str);
+                float y = std::stof(y_str);
 
-            std::cout << "!VISION_WRIST -> x = " << x
-                      << ", y = " << y << "\n";
-            
-            arm_control(x, y);
+                std::cout << "!VISION_WRIST -> x = " << x
+                        << ", y = " << y << "\n";
+                
+                arm_control(x, y);
+            }
+            else{
+                float pinch = std::stof(x_str);
+                std::cout << "!VISION_PINCH -> pinch = " << pinch << "\n";
+            }
+
 
         } catch (const std::exception& e) {
             std::cerr << "parse error: " << e.what()
