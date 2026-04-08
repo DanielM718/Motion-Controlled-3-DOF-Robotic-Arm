@@ -38,11 +38,11 @@ serial_sender::~serial_sender() { if (fd_ >= 0) ::close(fd_); }
 bool serial_sender::is_open() const { return open_; }
 
 bool serial_sender::send_angles(float base, float shoulder, float elbow,
-                                float wrist, float gripper) {
+                                float wrist) {
     if (!open_) return false;
     char buf[96];
-    int n = snprintf(buf, sizeof(buf), "<%.1f,%.1f,%.1f,%.1f,%.1f>\n",
-                     base, shoulder, elbow, wrist, gripper);
+    int n = snprintf(buf, sizeof(buf), "<ARM:%.1f,%.1f,%.1f,%.1f>\n",
+                     base, shoulder, elbow, wrist);
     ssize_t w = ::write(fd_, buf, n);
     tcdrain(fd_);
     return w > 0;
