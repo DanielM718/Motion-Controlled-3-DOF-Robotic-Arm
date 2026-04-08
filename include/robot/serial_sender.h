@@ -13,7 +13,8 @@ public:
     ~serial_sender();
     bool is_open() const;
     bool send_angles_arm(float base, float shoulder, float elbow);
-    bool send_angles_hand(float xWrist, float yWrist, float grip);
+    bool send_angles_wrist(float xWrist, float yWrist);
+    bool send_angles_grip(float grip);
     std::string read_response();
 };
 
