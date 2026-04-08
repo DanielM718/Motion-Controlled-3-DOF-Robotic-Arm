@@ -3,6 +3,8 @@
 
 const float control_unit::ARM_LENGTH = 1; // 1 m fake for sim purposes
 vector control_unit::TARGET_POS = vector(0.0, 2*ARM_LENGTH, 0.0);
+int control_unit::DEBUG_RESPONSE = 0;
+int control_unit::DEBUG_CONTROL = 0;
 
 control_unit::control_unit(){
     base = new joint(vector(0.0,0.0,0.0), 90, 0, 360);
@@ -10,7 +12,15 @@ control_unit::control_unit(){
     elbow = new joint(vector(0.0, ARM_LENGTH, 0.0), 0.0f, 0.0f, 180.0f);
     wrist = new joint(vector(0.0, ARM_LENGTH*2, 0.0), 0.0f, 0.0f, 180.0f);
 
-    robot = new serial_sender("/dev/tty.usbmodem2101");
+    robot = new serial_sender("/dev/tty.usbmodem101");
+}
+
+void control_unit::set_debug_response(int DEBUG_RESPONSE){
+    this->DEBUG_RESPONSE = DEBUG_RESPONSE;
+}
+
+void control_unit::set_debug_control(int DEBUG_CONTROL){
+    this->DEBUG_CONTROL = DEBUG_CONTROL;
 }
 
 int control_unit::base_control(){
@@ -66,9 +76,18 @@ void control_unit::controls(const vector NEW_TARGET_POS){
 
     vector wrist_pos = wrist->getPos();
     //printf("!wrist x: %f y: %f, z: %f\n", wrist_pos.x, wrist_pos.y, wrist_pos.z);
-    printf("!angles base: %d shoulder: %d elbow: %d\n", base_target, 180 - shoulder_target, 100 + elbow_target);
+    if(DEBUG_RESPONSE){
+        std::string robot_response = robot->read_response();
+        std::cout << "!" << robot_response << "\n";
+    }
+    if(DEBUG_CONTROL){
+        printf("!angles base: %d shoulder: %d elbow: %d\n", base_target, 180 - shoulder_target, 100 + elbow_target);
+    }
+    
     //robot->send_angles(base_target, shoulder_target, elbow_target, 180, 180);
     robot->send_angles(base_target, 180 - shoulder_target, 120 + elbow_target, 180, 180);
+
+
 }   
 
 joint* control_unit::getBase(){

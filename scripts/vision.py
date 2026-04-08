@@ -149,7 +149,7 @@ while True:
 
             print(f"WRIST,{col},{row}\n")
             pinch = 0 if gesture == "OPEN" else 1
-            print(f"WRIST,{col},{row}\nPINCH,{pinch}\n")
+            print(f"PINCH,{pinch}, 0\n")
 
     else:
         wrist_angle_history.clear()

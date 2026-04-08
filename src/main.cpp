@@ -20,6 +20,10 @@ constexpr double FRAME_H = 480.0;
 constexpr double ARM_LENGTH = 1.0; // 1 m
 constexpr double R = 2.0 * ARM_LENGTH;
 
+int DEBUG_MICRO = 0;
+int DEBUG_CONTROL = 0;
+int DEBUG_VISION = 0;
+
 vector grid_to_world(int gx, int gy) {
     // normalize grid → [-0.5, 0.5]
     double u = (static_cast<double>(gx) / (GRID_W - 1)) - 0.5;
@@ -91,13 +95,18 @@ void arm_control(float x, float y){
     setColor(255, 0, 0);
     drawSphere(arm_control_unit.getWrist()->getPos(), 0.1);
     animFlush();
+
+    std::cout.flush();
+    fflush(stdout);
 }
 
 int python_pipeline(){
     
     FILE* pipe = popen("python3 -u scripts/vision.py 2>/dev/null", "r");
     if (!pipe) {
-        std::cerr << "Failed to open pipe to Python process\n";
+        if(DEBUG_VISION){
+            std::cerr << "Failed to open pipe to Python process\n";
+        }
         return 1;
     }
 
@@ -125,7 +134,9 @@ int python_pipeline(){
         if (!std::getline(ss, name, ',') ||
             !std::getline(ss, x_str, ',') ||
             !std::getline(ss, y_str, ',')) {
-            std::cerr << "bad line: " << line << "\n";
+            if(DEBUG_VISION){
+                std::cerr << "!bad line: " << line << "\n";
+            }
             continue;
         }
 
@@ -133,21 +144,25 @@ int python_pipeline(){
             if(name == "WRIST"){
                 float x = std::stof(x_str);
                 float y = std::stof(y_str);
-
-                std::cout << "!VISION_WRIST -> x = " << x
-                        << ", y = " << y << "\n";
-                
+                if(DEBUG_VISION){
+                    std::cout << "!VISION_WRIST -> x = " << x
+                            << ", y = " << y << "\n";
+                }
                 arm_control(x, y);
             }
             else{
                 float pinch = std::stof(x_str);
-                std::cout << "!VISION_PINCH -> pinch = " << pinch << "\n";
+                if(DEBUG_VISION){
+                    std::cout << "!VISION_PINCH -> pinch = " << pinch << "\n";
+                }
             }
 
 
         } catch (const std::exception& e) {
-            std::cerr << "parse error: " << e.what()
-                      << " | line: " << line << "\n";
+            if(DEBUG_VISION){
+                std::cerr << "parse error: " << e.what()
+                        << " | line: " << line << "\n";
+            }
         }
     }
 
@@ -156,11 +171,24 @@ int python_pipeline(){
     return status;
 }
 
-int main() {
+int main(int argc, char *argv[]) {
+    setvbuf(stdout, nullptr, _IONBF, 0);
+    int i = 0;
+    while(i < argc){
+        if(!std::strcmp(argv[i], "-dm")){
+            DEBUG_MICRO = 1;
+            arm_control_unit.set_debug_response(DEBUG_MICRO);
+        }
+        else if(!std::strcmp(argv[i], "-dc")){
+            DEBUG_CONTROL = 1;
+            arm_control_unit.set_debug_control(DEBUG_CONTROL);
+        }
+        else if(!std::strcmp(argv[i], "-dv")){
+            DEBUG_VISION = 1;
+        }
+        i++;
+    }
     std::cout.setf(std::ios::unitbuf);
-    python_pipeline();
-    //
-    
-    
+    python_pipeline();    
     return 0;
 }

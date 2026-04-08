@@ -7,16 +7,24 @@
 
 #include "anim/anim.h"
 #include <cmath>
+#include <iostream>
 
 class control_unit {
     public:
         static const float ARM_LENGTH;
         static vector TARGET_POS;
+
+        static int DEBUG_RESPONSE;
+        static int DEBUG_CONTROL;
+
         control_unit();
         void controls(const vector NEW_TARGET_POS);
         int base_control();
         int shoulder_control();
         int elbow_control();
+
+        void set_debug_response(int DEBUG_RESPONSE);
+        void set_debug_control(int DEBUG_CONTROL);
 
         joint* getBase();
         joint* getShoulder();
