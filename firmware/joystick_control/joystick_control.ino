@@ -15,8 +15,10 @@ void loop() {
   bool pressed = !digitalRead(SEL_PIN); // LOW when pressed, so we flip it
 
   Serial.print("Rotation:");
-  Serial.print(xVal + ','); // X coordinate
-  Serial.print(yVal + ','); // Y coordinate
+  Serial.print(xVal); // X coordinate
+  Serial.print(',');
+  Serial.print(yVal); // Y coordinate
+  Serial.print(',');
   Serial.println(pressed ? "PRESSED" : "NOT_PRESSED");
 }
 

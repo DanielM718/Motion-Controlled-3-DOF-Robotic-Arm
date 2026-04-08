@@ -18,13 +18,20 @@ class control_unit {
         static int DEBUG_CONTROL;
 
         control_unit();
+
         void controls(const vector NEW_TARGET_POS);
+        void controls(const vector NEW_TARGET_POS, bool pinch);
+
         int base_control();
         int shoulder_control();
         int elbow_control();
 
         void set_debug_response(int DEBUG_RESPONSE);
         void set_debug_control(int DEBUG_CONTROL);
+
+        void head_control(int x, int y, bool pressed);
+        void head_control(int x, int y);
+
 
         joint* getBase();
         joint* getShoulder();

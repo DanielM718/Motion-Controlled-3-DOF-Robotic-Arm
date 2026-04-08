@@ -24,6 +24,8 @@ int DEBUG_MICRO = 0;
 int DEBUG_CONTROL = 0;
 int DEBUG_VISION = 0;
 
+int PINCH_JOYSTICK = 0;
+
 vector grid_to_world(int gx, int gy) {
     // normalize grid → [-0.5, 0.5]
     double u = (static_cast<double>(gx) / (GRID_W - 1)) - 0.5;
@@ -100,7 +102,35 @@ void arm_control(float x, float y){
     fflush(stdout);
 }
 
+bool parse_joystick(const std::string& line,
+                              int& x,
+                              int& y,
+                              bool& pressed) {
+    if (line.rfind("Rotation:", 0) != 0) return false;
+
+    const char* ptr = line.c_str() + 9;
+    char* end;
+
+    // Parse X
+    x = std::strtol(ptr, &end, 10);
+    if (*end != ',') return false;
+
+    // Parse Y
+    ptr = end + 1;
+    y = std::strtol(ptr, &end, 10);
+    if (*end != ',') return false;
+
+    // Parse pressed
+    ptr = end + 1;
+    pressed = (std::strcmp(ptr, "PRESSED") == 0);
+
+    return true;
+}
+
 int python_pipeline(){
+
+    serial_sender* joystick = new serial_sender("/dev/tty.usbmodem2101");
+
     
     FILE* pipe = popen("python3 -u scripts/vision.py 2>/dev/null", "r");
     if (!pipe) {
@@ -113,7 +143,14 @@ int python_pipeline(){
     char buffer[4096];
 
     while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
-        
+        std::string joy_response = joystick->read_response();
+        int joyx, joyy = 0;
+        bool pressed;
+    
+        if(parse_joystick(joy_response, joyx, joyy, pressed)){
+            
+        }
+
         std::string line(buffer);
 
         if (!line.empty() && line.back() == '\n') {
@@ -185,6 +222,9 @@ int main(int argc, char *argv[]) {
         }
         else if(!std::strcmp(argv[i], "-dv")){
             DEBUG_VISION = 1;
+        }
+        else if(!std::strcmp(argv[i], "-pj")){
+            PINCH_JOYSTICK = 1;
         }
         i++;
     }
