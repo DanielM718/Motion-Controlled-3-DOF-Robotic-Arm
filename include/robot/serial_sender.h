@@ -12,7 +12,8 @@ public:
     serial_sender(const std::string& port, speed_t baud = B115200);
     ~serial_sender();
     bool is_open() const;
-    bool send_angles(float base, float shoulder, float elbow, float wrist);
+    bool send_angles_arm(float base, float shoulder, float elbow);
+    bool send_angles_hand(float xWrist, float yWrist, float grip);
     std::string read_response();
 };
 

@@ -37,12 +37,21 @@ serial_sender::serial_sender(const std::string& port, speed_t baud)
 serial_sender::~serial_sender() { if (fd_ >= 0) ::close(fd_); }
 bool serial_sender::is_open() const { return open_; }
 
-bool serial_sender::send_angles(float base, float shoulder, float elbow,
-                                float wrist) {
+bool serial_sender::send_angles_arm(float base, float shoulder, float elbow) {
     if (!open_) return false;
     char buf[96];
-    int n = snprintf(buf, sizeof(buf), "<ARM:%.1f,%.1f,%.1f,%.1f>\n",
-                     base, shoulder, elbow, wrist);
+    int n = snprintf(buf, sizeof(buf), "<ARM:%.1f,%.1f,%.1f>\n",
+                     base, shoulder, elbow);
+    ssize_t w = ::write(fd_, buf, n);
+    tcdrain(fd_);
+    return w > 0;
+}
+
+bool serial_sender::send_angles_hand(float xWrist, float yWrist, float grip) {
+    if (!open_) return false;
+    char buf[96];
+    int n = snprintf(buf, sizeof(buf), "<HAND:%.1f,%.1f,%.1f>\n",
+                     xWrist, yWrist, grip);
     ssize_t w = ::write(fd_, buf, n);
     tcdrain(fd_);
     return w > 0;
