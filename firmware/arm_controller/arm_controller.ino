@@ -3,85 +3,84 @@
 #define DXL_SERIAL Serial1
 #define DIR_PIN    -1  // OpenRB-150: automatic
 
-#define NUM_JOINTS 3//5
+// ── Serial ports ─────────────────────────────────────────────
+// Serial  = USB to Raspberry Pi   (sends <ARM:b,s,e,w>)
+// Serial2 = UART to second Arduino (sends <HAND:wRot,grip>)
+#define PI_SERIAL   Serial
+#define HAND_SERIAL Serial2
+#define HAND_BAUD   115200
 
-static const uint8_t ids[NUM_JOINTS] = { 1, 2, 3, 4, 5 };
+// ── All 6 servos on one Dynamixel bus ────────────────────────
+#define NUM_ARM   4
+#define NUM_HAND  2
+#define NUM_ALL   6
 
-// ── Calibration offsets (degrees added before sending to servo) ──
-// Measure these: command 0° to each joint, note how far off mechanical
-// zero it is, put the correction here.
-static float offsets[NUM_JOINTS] = { 0.0, 0.0, 0.0, 0.0, 0.0 };
+static const uint8_t ids[NUM_ALL] = { 1, 2, 3, 4, 5, 6 };
+static const char *names[NUM_ALL] = { "base", "shldr", "elbow", "wrist", "wRot", "grip" };
 
-// ── Per-joint hard limits (in degrees, AFTER offset applied) ────
-// Joints: 0=base, 1=shoulder, 2=elbow, 3=wrist, 4=gripper
-// Tune these with torque off: manually move each joint to its
-// mechanical stops and read the angle.
-static float lim_lo[NUM_JOINTS] = {   0.0,  48.0,  100.0,  75.0,  0.0 };
-static float lim_hi[NUM_JOINTS] = { 360.0, 190.0, 280.0, 280.0, 360.0 };
+// ── Calibration offsets ──────────────────────────────────────
+static float offsets[NUM_ALL] = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
 
-// ── Motion profile (servos handle the smoothing internally) ─────
-// PROFILE_VEL: 0 = max speed, units = 0.229 rev/min
-// PROFILE_ACC: 0 = max accel, units = 214.577 rev/min²
-// These prevent overload by limiting how aggressively the servo
-// tries to reach the goal — the TARGET stays exact.
+// ── Per-joint hard limits (degrees, AFTER offset) ────────────
+static float lim_lo[NUM_ALL] = {   0.0,  48.0, 100.0,  75.0,   0.0,   0.0 };
+static float lim_hi[NUM_ALL] = { 360.0, 190.0, 280.0, 280.0, 360.0, 360.0 };
+
+// ── Motion profile ───────────────────────────────────────────
 #define PROFILE_VEL  60
 #define PROFILE_ACC  20
 
-// ── Collision thresholds (tune to your geometry) ────────────────
 #define COLLISION_MARGIN 15.0
 
 Dynamixel2Arduino dxl(DXL_SERIAL, DIR_PIN);
 using namespace ControlTableItem;
 
-static char  rx[128];
-static int   ri = 0;
-static bool  active = false;
-static bool  alive[NUM_JOINTS];
-static float lastCmd[NUM_JOINTS];
-static bool  calMode = false;          // calibration mode: torque off, stream angles
+static bool  alive[NUM_ALL];
+static float lastCmd[NUM_ALL];
+static bool  calMode = false;
+
+// ── Per-port receive buffers ─────────────────────────────────
+struct RxBuf {
+  char  buf[128];
+  int   idx;
+  bool  active;
+};
+static RxBuf piRx   = { {}, 0, false };
+static RxBuf handRx = { {}, 0, false };
 
 // ──────────────────────────────────────────────────────────────
-//  Inter-joint collision check
-//  Returns true if the requested pose is SAFE.
-//  All angles here are in USER space (before offsets).
+//  Collision check (arm joints only, user-space angles)
 // ──────────────────────────────────────────────────────────────
 bool poseIsSafe(float *a) {
   float shoulder = a[1] + offsets[1];
   float elbow    = a[2] + offsets[2];
   float wrist    = a[3] + offsets[3];
 
-  // Rule 1: shoulder raised + elbow folded back = forearm hits base
   if (shoulder > 160.0 && elbow > (360.0 - shoulder + COLLISION_MARGIN)) {
-    Serial.print("COLLISION: shldr="); Serial.print(shoulder, 1);
-    Serial.print(" elb="); Serial.println(elbow, 1);
+    PI_SERIAL.print("COLLISION: shldr="); PI_SERIAL.print(shoulder, 1);
+    PI_SERIAL.print(" elb="); PI_SERIAL.println(elbow, 1);
     return false;
   }
-
-  // Rule 2: elbow + wrist fold = gripper hits forearm
   if ((elbow + wrist) > 420.0) {
-    Serial.print("COLLISION: elb+wrist="); Serial.println(elbow + wrist, 1);
+    PI_SERIAL.print("COLLISION: elb+wrist="); PI_SERIAL.println(elbow + wrist, 1);
     return false;
   }
-
-  // Rule 3: full tuck
   if (shoulder > 180.0 && elbow > 200.0) {
-    Serial.print("COLLISION: full tuck shldr="); Serial.print(shoulder, 1);
-    Serial.print(" elb="); Serial.println(elbow, 1);
+    PI_SERIAL.print("COLLISION: full tuck shldr="); PI_SERIAL.print(shoulder, 1);
+    PI_SERIAL.print(" elb="); PI_SERIAL.println(elbow, 1);
     return false;
   }
-
   return true;
 }
 
-// ── Initialise one servo ─────────────────────────────────────
+// ── Servo helpers ────────────────────────────────────────────
 bool initServo(int j) {
   if (!dxl.ping(ids[j])) return false;
 
   uint8_t hwErr = dxl.readControlTableItem(HARDWARE_ERROR_STATUS, ids[j]);
   if (hwErr != 0) {
-    Serial.print("ID "); Serial.print(ids[j]);
-    Serial.print(" hw error 0x"); Serial.print(hwErr, HEX);
-    Serial.println(" – rebooting");
+    PI_SERIAL.print("ID "); PI_SERIAL.print(ids[j]);
+    PI_SERIAL.print(" hw error 0x"); PI_SERIAL.print(hwErr, HEX);
+    PI_SERIAL.println(" – rebooting");
     dxl.reboot(ids[j]);
     delay(500);
     if (!dxl.ping(ids[j])) return false;
@@ -89,15 +88,12 @@ bool initServo(int j) {
 
   dxl.torqueOff(ids[j]);
   dxl.setOperatingMode(ids[j], OP_POSITION);
-  dxl.writeControlTableItem(PROFILE_VELOCITY,     ids[j], PROFILE_VEL);
-  dxl.writeControlTableItem(PROFILE_ACCELERATION,  ids[j], PROFILE_ACC);
+  dxl.writeControlTableItem(PROFILE_VELOCITY,    ids[j], PROFILE_VEL);
+  dxl.writeControlTableItem(PROFILE_ACCELERATION, ids[j], PROFILE_ACC);
   dxl.torqueOn(ids[j]);
   return true;
 }
 
-// ── Drive one joint to an ABSOLUTE angle ─────────────────────
-// The servo's profile velocity/acceleration smooths the motion.
-// The target is sent exactly as requested (after offset + clamp).
 bool drive(int j, float deg) {
   if (!alive[j]) return false;
   float a = deg + offsets[j];
@@ -107,66 +103,58 @@ bool drive(int j, float deg) {
   return dxl.setGoalPosition(ids[j], a, UNIT_DEGREE);
 }
 
-// ── Parse "<v,v,v,v,v>" payload ──────────────────────────────
-bool parse(const char *msg, float *angles) {
+// ── Generic float parser ─────────────────────────────────────
+bool parseFloats(const char *msg, float *out, int count) {
   char buf[128];
   strncpy(buf, msg, 127); buf[127] = '\0';
   char *t = strtok(buf, ",");
-  for (int i = 0; i < NUM_JOINTS; i++) {
+  for (int i = 0; i < count; i++) {
     if (!t) return false;
     char *end;
     float v = strtof(t, &end);
-    if (end == t)              return false;   // no digits
-    if (isnan(v) || isinf(v)) return false;   // garbage
-    angles[i] = v;
+    if (end == t || isnan(v) || isinf(v)) return false;
+    out[i] = v;
     t = strtok(NULL, ",");
   }
   return true;
 }
 
-// ── Calibration mode ─────────────────────────────────────────
-//    Send <CAL> to enter: torque off, angles printed every 200ms
-//    Send <RUN> to exit:  torque back on, normal operation
-//    Send <SNAP> while in CAL to print one labelled snapshot
-
+// ── Calibration mode (all 6 joints) ─────────────────────────
 void enterCalMode() {
   calMode = true;
-  for (int j = 0; j < NUM_JOINTS; j++) {
+  for (int j = 0; j < NUM_ALL; j++)
     if (alive[j]) dxl.torqueOff(ids[j]);
-  }
-  Serial.println("=== CAL MODE === torque OFF – move joints by hand");
-  Serial.println("  <SNAP>  print a labelled snapshot");
-  Serial.println("  <RUN>   exit cal mode");
+  PI_SERIAL.println("=== CAL MODE === torque OFF – move joints by hand");
+  PI_SERIAL.println("  <ARM:SNAP>  labelled snapshot");
+  PI_SERIAL.println("  <ARM:RUN>   exit cal mode");
 }
 
 void exitCalMode() {
   calMode = false;
-  for (int j = 0; j < NUM_JOINTS; j++) {
+  for (int j = 0; j < NUM_ALL; j++) {
     if (alive[j]) {
-      // Read wherever the user left each joint and adopt that as goal
       float cur = dxl.getPresentPosition(ids[j], UNIT_DEGREE);
       lastCmd[j] = cur;
       dxl.torqueOn(ids[j]);
       dxl.setGoalPosition(ids[j], cur, UNIT_DEGREE);
     }
   }
-  Serial.println("=== RUN MODE === torque ON");
+  PI_SERIAL.println("=== RUN MODE === torque ON");
 }
 
 void printAngles(bool labelled) {
-  const char *names[NUM_JOINTS] = { "base", "shldr", "elbow", "wrist", "grip" };
-  for (int j = 0; j < NUM_JOINTS; j++) {
+  for (int j = 0; j < NUM_ALL; j++) {
     if (!alive[j]) {
-      if (labelled) { Serial.print(names[j]); Serial.print(":---"); }
-      else Serial.print("---");
+      if (labelled) { PI_SERIAL.print(names[j]); PI_SERIAL.print(":---"); }
+      else PI_SERIAL.print("---");
     } else {
       float deg = dxl.getPresentPosition(ids[j], UNIT_DEGREE);
-      if (labelled) { Serial.print(names[j]); Serial.print(":"); }
-      Serial.print(deg, 1);
+      if (labelled) { PI_SERIAL.print(names[j]); PI_SERIAL.print(":"); }
+      PI_SERIAL.print(deg, 1);
     }
-    if (j < NUM_JOINTS - 1) Serial.print("  ");
+    if (j < NUM_ALL - 1) PI_SERIAL.print("  ");
   }
-  Serial.println();
+  PI_SERIAL.println();
 }
 
 void calLoop() {
@@ -176,105 +164,149 @@ void calLoop() {
   printAngles(false);
 }
 
-// ── Health check (runs every 500 ms) ─────────────────────────
+// ── Health check ─────────────────────────────────────────────
 void healthCheck() {
   static unsigned long lastCheck = 0;
   if (millis() - lastCheck < 500) return;
   lastCheck = millis();
 
-  for (int j = 0; j < NUM_JOINTS; j++) {
+  for (int j = 0; j < NUM_ALL; j++) {
     if (!alive[j]) {
       alive[j] = initServo(j);
       if (alive[j]) {
-        Serial.print("ID "); Serial.print(ids[j]); Serial.println(" RECOVERED");
+        PI_SERIAL.print("ID "); PI_SERIAL.print(ids[j]); PI_SERIAL.println(" RECOVERED");
         dxl.setGoalPosition(ids[j], lastCmd[j], UNIT_DEGREE);
       }
       continue;
     }
-
     uint8_t torque = dxl.readControlTableItem(TORQUE_ENABLE, ids[j]);
     if (torque == 0) {
-      Serial.print("ID "); Serial.print(ids[j]); Serial.println(" torque lost – recovering");
-      if (initServo(j)) {
+      PI_SERIAL.print("ID "); PI_SERIAL.print(ids[j]); PI_SERIAL.println(" torque lost – recovering");
+      if (initServo(j))
         dxl.setGoalPosition(ids[j], lastCmd[j], UNIT_DEGREE);
-      } else {
+      else
         alive[j] = false;
-      }
     }
   }
 }
 
 // ──────────────────────────────────────────────────────────────
+//  Handle a complete <TAG:payload> message
+// ──────────────────────────────────────────────────────────────
+void handleMessage(const char *msg) {
+  const char *colon = strchr(msg, ':');
+  if (!colon) return;
+
+  int tagLen = colon - msg;
+  const char *payload = colon + 1;
+
+  // ── ARM:  4 angles from Raspberry Pi (joints 0-3) ─────────
+  if (tagLen == 3 && strncmp(msg, "ARM", 3) == 0) {
+
+    if (strcmp(payload, "CAL")  == 0) { enterCalMode(); return; }
+    if (strcmp(payload, "RUN")  == 0) { exitCalMode();  return; }
+    if (strcmp(payload, "SNAP") == 0) { printAngles(true); return; }
+
+    if (calMode) {
+      PI_SERIAL.println("In CAL mode – send <ARM:RUN> first");
+      return;
+    }
+
+    float angles[NUM_ARM];
+    if (!parseFloats(payload, angles, NUM_ARM)) {
+      PI_SERIAL.println("ARM PARSE ERROR");
+      return;
+    }
+
+    if (!poseIsSafe(angles)) {
+      PI_SERIAL.println("ARM REJECTED – collision risk");
+      return;
+    }
+
+    PI_SERIAL.print("ARM CMD: ");
+    for (int i = 0; i < NUM_ARM; i++) {
+      PI_SERIAL.print(angles[i], 1);
+      if (i < NUM_ARM - 1) PI_SERIAL.print(", ");
+    }
+    PI_SERIAL.println();
+
+    for (int i = 0; i < NUM_ARM; i++) {
+      if (!drive(i, angles[i]))
+        PI_SERIAL.print("ID "), PI_SERIAL.print(ids[i]), PI_SERIAL.println(" FAILED");
+    }
+    return;
+  }
+
+  // ── HAND:  2 angles from second Arduino (joints 4-5) ──────
+  if (tagLen == 4 && strncmp(msg, "HAND", 4) == 0) {
+
+    if (calMode) return;
+
+    float angles[NUM_HAND];
+    if (!parseFloats(payload, angles, NUM_HAND)) {
+      PI_SERIAL.println("HAND PARSE ERROR");
+      return;
+    }
+
+    PI_SERIAL.print("HAND CMD: ");
+    for (int i = 0; i < NUM_HAND; i++) {
+      PI_SERIAL.print(angles[i], 1);
+      if (i < NUM_HAND - 1) PI_SERIAL.print(", ");
+    }
+    PI_SERIAL.println();
+
+    for (int i = 0; i < NUM_HAND; i++) {
+      int j = NUM_ARM + i;   // maps to joint index 4, 5
+      if (!drive(j, angles[i]))
+        PI_SERIAL.print("ID "), PI_SERIAL.print(ids[j]), PI_SERIAL.println(" FAILED");
+    }
+    return;
+  }
+}
+
+// ── Read from a serial port into its buffer ──────────────────
+void readPort(Stream &port, RxBuf &rb) {
+  while (port.available()) {
+    char c = port.read();
+    if (c == '<') { rb.idx = 0; rb.active = true; }
+    else if (c == '>' && rb.active) {
+      rb.buf[rb.idx] = '\0';
+      rb.active = false;
+      handleMessage(rb.buf);
+    }
+    else if (rb.active && rb.idx < 127) { rb.buf[rb.idx++] = c; }
+  }
+}
+
+// ──────────────────────────────────────────────────────────────
 void setup() {
-  Serial.begin(115200);
-  while (!Serial && millis() < 2000);
+  PI_SERIAL.begin(115200);
+  while (!PI_SERIAL && millis() < 2000);
+
+  HAND_SERIAL.begin(HAND_BAUD);
+
   dxl.begin(57600);
   dxl.setPortProtocolVersion(2.0);
 
-  for (int j = 0; j < NUM_JOINTS; j++) {
+  for (int j = 0; j < NUM_ALL; j++) {
     lastCmd[j] = (lim_lo[j] + lim_hi[j]) / 2.0;
     alive[j] = initServo(j);
-    if (alive[j]) {
+    if (alive[j])
       dxl.setGoalPosition(ids[j], lastCmd[j], UNIT_DEGREE);
-    }
-    Serial.print("ID "); Serial.print(ids[j]);
-    Serial.println(alive[j] ? " OK" : " MISSING");
+    PI_SERIAL.print("ID "); PI_SERIAL.print(ids[j]);
+    PI_SERIAL.println(alive[j] ? " OK" : " MISSING");
   }
-  Serial.println("Ready - send <base,shoulder,elbow,wrist,gripper>");
-  Serial.println("  <CAL> = calibration mode (torque off, read angles)");
+
+  PI_SERIAL.println("Ready");
+  PI_SERIAL.println("  Pi  -> <ARM:base,shldr,elbow,wrist>");
+  PI_SERIAL.println("  Aux -> <HAND:wRot,grip>");
+  PI_SERIAL.println("  <ARM:CAL>  <ARM:RUN>  <ARM:SNAP>");
 }
 
 void loop() {
-  while (Serial.available()) {
-    char c = Serial.read();
-    if (c == '<') { ri = 0; active = true; }
-    else if (c == '>' && active) {
-      rx[ri] = '\0'; active = false;
+  readPort(PI_SERIAL,   piRx);     // USB from Raspberry Pi
+  readPort(HAND_SERIAL, handRx);   // UART from second Arduino
 
-      // ── Special commands ──
-      if (strcmp(rx, "CAL") == 0)  { enterCalMode(); continue; }
-      if (strcmp(rx, "RUN") == 0)  { exitCalMode();  continue; }
-      if (strcmp(rx, "SNAP") == 0) { printAngles(true); continue; }
-
-      // ── Ignore motion commands in cal mode ──
-      if (calMode) {
-        Serial.println("In CAL mode – send <RUN> first");
-        continue;
-      }
-
-      float angles[NUM_JOINTS];
-
-      if (!parse(rx, angles)) {
-        Serial.println("PARSE ERROR");
-        continue;
-      }
-
-      // Reject unsafe poses — do NOT modify the angles
-      if (!poseIsSafe(angles)) {
-        Serial.println("REJECTED – collision risk");
-        continue;
-      }
-
-      // Send exact IK targets to servos
-      Serial.print("CMD: ");
-      for (int i = 0; i < NUM_JOINTS; i++) {
-        Serial.print(angles[i], 1);
-        if (i < NUM_JOINTS - 1) Serial.print(", ");
-      }
-      Serial.println();
-
-      for (int i = 0; i < NUM_JOINTS; i++) {
-        if (!drive(i, angles[i]))
-          Serial.print("ID "), Serial.print(ids[i]), Serial.println(" FAILED");
-      }
-    }
-    else if (active && ri < 127) { rx[ri++] = c; }
-  }
-
-  // ── Mode-dependent background tasks ──
-  if (calMode) {
-    calLoop();         // stream angles every 200ms
-  } else {
-    healthCheck();     // keep servos alive
-  }
+  if (calMode) calLoop();
+  else         healthCheck();
 }
