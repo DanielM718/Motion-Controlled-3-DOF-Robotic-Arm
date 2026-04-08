@@ -106,7 +106,7 @@ void arm_control(float x, float y){
 bool parse_joystick(const std::string& line,
                               int& x,
                               int& y,
-                              bool& pressed) {
+                              float& pressed) {
     if (line.rfind("Rotation:", 0) != 0) return false;
 
     const char* ptr = line.c_str() + 9;
@@ -146,10 +146,15 @@ int python_pipeline(){
     while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
         std::string joy_response = joystick->read_response();
         int joyx, joyy = 0;
-        bool pressed;
+        float pressed;
     
         if(parse_joystick(joy_response, joyx, joyy, pressed)){
-            
+            if(PINCH_JOYSTICK){
+                arm_control_unit.head_control(joyx, joyy, pressed);
+            }
+            else{
+                arm_control_unit.head_control(joyx, joyy);
+            }
         }
 
         std::string line(buffer);
@@ -192,6 +197,9 @@ int python_pipeline(){
                 float pinch = std::stof(x_str);
                 if(DEBUG_VISION){
                     std::cout << "!VISION_PINCH -> pinch = " << pinch << "\n";
+                }
+                if(!PINCH_JOYSTICK){
+                    arm_control_unit.pinch_control(pinch);
                 }
             }
 

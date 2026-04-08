@@ -20,7 +20,7 @@ class control_unit {
         control_unit();
 
         void controls(const vector NEW_TARGET_POS);
-        void controls(const vector NEW_TARGET_POS, bool pinch);
+        void controls(const vector NEW_TARGET_POS, float pinch);
 
         int base_control();
         int shoulder_control();
@@ -29,9 +29,10 @@ class control_unit {
         void set_debug_response(int DEBUG_RESPONSE);
         void set_debug_control(int DEBUG_CONTROL);
 
-        void head_control(int x, int y, bool pressed);
+        void head_control(int x, int y, float pressed);
         void head_control(int x, int y);
 
+        void pinch_control(float pressed);
 
         joint* getBase();
         joint* getShoulder();

@@ -86,36 +86,21 @@ void control_unit::controls(const vector NEW_TARGET_POS){
         printf("!angles base: %d shoulder: %d elbow: %d\n", base_target, 180 - shoulder_target, 100 + elbow_target);
     }
     //robot->send_angles(base_target, shoulder_target, elbow_target, 180, 180);
-    robot->send_angles(base_target, 180 - shoulder_target, 120 + elbow_target, 180, 180);
+    robot->send_angles_arm(base_target, 180 - shoulder_target, 120 + elbow_target);
 }   
 
-void control_unit::controls(const vector NEW_TARGET_POS, bool pinch){
-    TARGET_POS = NEW_TARGET_POS;
-
-    int base_target = base_control();
-    int shoulder_target = shoulder_control();
-    int elbow_target = elbow_control();
-
-    vector wrist_pos = wrist->getPos();
-    //printf("!wrist x: %f y: %f, z: %f\n", wrist_pos.x, wrist_pos.y, wrist_pos.z);
-    if(DEBUG_RESPONSE){
-        std::string robot_response = robot->read_response();
-        std::cout << "!" << robot_response << "\n";
-    }
-    if(DEBUG_CONTROL){
-        printf("!angles base: %d shoulder: %d elbow: %d\n", base_target, 180 - shoulder_target, 100 + elbow_target);
-    }
-    //robot->send_angles(base_target, shoulder_target, elbow_target, 180, 180);
-    robot->send_angles(base_target, 180 - shoulder_target, 120 + elbow_target, 180, 180);
-}   
-
-void control_unit::head_control(int x, int y, bool pressed){
-
+void control_unit::head_control(int x, int y, float pressed){
+    robot->send_angles_wrist(x, y);
+    robot->send_angles_grip(pressed);
 }
 
 
 void control_unit::head_control(int x, int y){
-    
+    robot->send_angles_wrist(x, y);
+}
+
+void control_unit::pinch_control(float pressed){
+    robot->send_angles_grip(pressed);
 }
 
 
