@@ -8,6 +8,7 @@ class serial_sender {
 private:
     int  fd_;
     bool open_;
+    std::string rx_buffer_;
 public:
     serial_sender(const std::string& port, speed_t baud = B115200);
     ~serial_sender();

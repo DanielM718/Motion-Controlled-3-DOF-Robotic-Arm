@@ -5,7 +5,7 @@ const int VRY_PIN = A2;
 const int SEL_PIN = 7;
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(115200);
   pinMode(SEL_PIN, INPUT_PULLUP); // PULLUP so unpressed = HIGH, pressed = LOW
 }
 

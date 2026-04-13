@@ -7,7 +7,6 @@ vector control_unit::TARGET_POS = vector(0.0, 2*ARM_LENGTH, 0.0);
 int control_unit::DEBUG_RESPONSE = 0;
 int control_unit::DEBUG_CONTROL = 0;
 
-
 control_unit::control_unit(){
     base = new joint(vector(0.0,0.0,0.0), 90, 0, 360);
     shoulder = new joint(vector(0.0, 0.0, 0.0), 0.0f, 0.0f, 180.0f);
@@ -94,7 +93,6 @@ void control_unit::head_control(int x, int y, float pressed){
     robot->send_angles_grip(pressed);
 }
 
-
 void control_unit::head_control(int x, int y){
     robot->send_angles_wrist(x, y);
 }
@@ -102,7 +100,6 @@ void control_unit::head_control(int x, int y){
 void control_unit::pinch_control(float pressed){
     robot->send_angles_grip(pressed);
 }
-
 
 joint* control_unit::getBase(){
     return base;

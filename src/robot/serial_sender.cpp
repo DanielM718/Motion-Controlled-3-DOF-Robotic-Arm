@@ -68,8 +68,30 @@ bool serial_sender::send_angles_grip(float grip) {
 
 std::string serial_sender::read_response() {
     if (!open_) return "";
+
     char buf[256];
-    ssize_t n = ::read(fd_, buf, sizeof(buf) - 1);
-    if (n > 0) { buf[n] = '\0'; return std::string(buf); }
-    return "";
+    ssize_t n;
+
+    while ((n = ::read(fd_, buf, sizeof(buf))) > 0) {
+        rx_buffer_.append(buf, n);
+    }
+
+    size_t last_newline = rx_buffer_.rfind('\n');
+    if (last_newline == std::string::npos) {
+        return "";
+    }
+
+    size_t prev_newline = rx_buffer_.rfind('\n', last_newline == 0 ? 0 : last_newline - 1);
+    size_t line_start = (prev_newline == std::string::npos) ? 0 : prev_newline + 1;
+
+    std::string line = rx_buffer_.substr(line_start, last_newline - line_start);
+
+    // keep only trailing partial data after the last full line
+    rx_buffer_ = rx_buffer_.substr(last_newline + 1);
+
+    if (!line.empty() && line.back() == '\r') {
+        line.pop_back();
+    }
+
+    return line;
 }

@@ -6,6 +6,8 @@
 #include <random>
 #include <cmath>
 #include <chrono>
+#include <fcntl.h>
+#include <unistd.h>
 
 #include <data_types/vector.h>
 #include <robot/controls.h>
@@ -24,6 +26,7 @@ constexpr double R = 2.0 * ARM_LENGTH;
 int DEBUG_MICRO = 0;
 int DEBUG_CONTROL = 0;
 int DEBUG_VISION = 0;
+int DEBUG_JOYSTICK = 0;
 
 int PINCH_JOYSTICK = 0;
 
@@ -125,14 +128,17 @@ bool parse_joystick(const std::string& line,
     ptr = end + 1;
     pressed = (std::strcmp(ptr, "PRESSED") == 0);
 
+    if(DEBUG_JOYSTICK){
+        std::cout << "!x: " << x << "\t"<< "y: " << y << "\t" << "pinch: " << pressed << std::endl;  
+    }
+
     return true;
 }
 
 int python_pipeline(){
 
-    serial_sender* joystick = new serial_sender("/dev/tty.usbmodem2101");
+    serial_sender* joystick = new serial_sender("/dev/tty.usbmodem21101");
 
-    
     FILE* pipe = popen("python3 -u scripts/vision.py 2>/dev/null", "r");
     if (!pipe) {
         if(DEBUG_VISION){
@@ -141,13 +147,18 @@ int python_pipeline(){
         return 1;
     }
 
-    char buffer[4096];
+    int pipe_fd = fileno(pipe);
+    fcntl(pipe_fd, F_SETFL, fcntl(pipe_fd, F_GETFL) | O_NONBLOCK);
 
-    while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+    std::string py_buffer;
+    char py_buf[1024];
+
+    while (true) {
+        // polling joystick
         std::string joy_response = joystick->read_response();
-        int joyx, joyy = 0;
-        float pressed;
-    
+        int joyx = 0, joyy = 0;
+        float pressed = 0.0f;
+
         if(parse_joystick(joy_response, joyx, joyy, pressed)){
             if(PINCH_JOYSTICK){
                 arm_control_unit.head_control(joyx, joyy, pressed);
@@ -157,57 +168,65 @@ int python_pipeline(){
             }
         }
 
-        std::string line(buffer);
-
-        if (!line.empty() && line.back() == '\n') {
-            line.pop_back();
+        // polling python
+        ssize_t n = read(pipe_fd, py_buf, sizeof(py_buf));
+        if (n > 0) {
+            py_buffer.append(py_buf, n);
         }
 
-        if (line.empty()) {
-            continue;
-        }
+        size_t newline_pos;
+        while ((newline_pos = py_buffer.find('\n')) != std::string::npos) {
+            std::string line = py_buffer.substr(0, newline_pos);
+            py_buffer.erase(0, newline_pos + 1);
 
-        if (line == "NO_HAND") {
-            continue;
-        }
-
-        std::stringstream ss(line);
-        std::string name, x_str, y_str;
-
-        if (!std::getline(ss, name, ',') ||
-            !std::getline(ss, x_str, ',') ||
-            !std::getline(ss, y_str, ',')) {
-            if(DEBUG_VISION){
-                std::cerr << "!bad line: " << line << "\n";
+            if (!line.empty() && line.back() == '\r') {
+                line.pop_back();
             }
-            continue;
-        }
 
-        try {
-            if(name == "WRIST"){
-                float x = std::stof(x_str);
-                float y = std::stof(y_str);
+            if (line.empty()) {
+                continue;
+            }
+
+            if (line == "NO_HAND") {
+                continue;
+            }
+
+            std::stringstream ss(line);
+            std::string name, x_str, y_str;
+
+            if (!std::getline(ss, name, ',') ||
+                !std::getline(ss, x_str, ',') ||
+                !std::getline(ss, y_str, ',')) {
                 if(DEBUG_VISION){
-                    std::cout << "!VISION_WRIST -> x = " << x
-                            << ", y = " << y << "\n";
+                    std::cerr << "!bad line: " << line << "\n";
                 }
-                arm_control(x, y);
+                continue;
             }
-            else{
-                float pinch = std::stof(x_str);
+
+            try {
+                if(name == "WRIST"){
+                    float x = std::stof(x_str);
+                    float y = std::stof(y_str);
+                    if(DEBUG_VISION){
+                        std::cout << "!VISION_WRIST -> x = " << x
+                                  << ", y = " << y << "\n";
+                    }
+                    arm_control(x, y);
+                }
+                else{
+                    float pinch = std::stof(x_str);
+                    if(DEBUG_VISION){
+                        std::cout << "!VISION_PINCH -> pinch = " << pinch << "\n";
+                    }
+                    if(!PINCH_JOYSTICK){
+                        arm_control_unit.pinch_control(pinch);
+                    }
+                }
+            } catch (const std::exception& e) {
                 if(DEBUG_VISION){
-                    std::cout << "!VISION_PINCH -> pinch = " << pinch << "\n";
+                    std::cerr << "parse error: " << e.what()
+                              << " | line: " << line << "\n";
                 }
-                if(!PINCH_JOYSTICK){
-                    arm_control_unit.pinch_control(pinch);
-                }
-            }
-
-
-        } catch (const std::exception& e) {
-            if(DEBUG_VISION){
-                std::cerr << "parse error: " << e.what()
-                        << " | line: " << line << "\n";
             }
         }
     }
@@ -216,6 +235,12 @@ int python_pipeline(){
     std::cout << "Python process exited with status: " << status << "\n";
     return status;
 }
+/*
+-dm debug Micro Controller
+-dc debug Arm Controller
+-dv debug vision model
+-pj joystick takes control on pinch
+*/
 
 int main(int argc, char *argv[]) {
     setvbuf(stdout, nullptr, _IONBF, 0);
@@ -234,6 +259,9 @@ int main(int argc, char *argv[]) {
         }
         else if(!std::strcmp(argv[i], "-pj")){
             PINCH_JOYSTICK = 1;
+        }
+        else if(!std::strcmp(argv[i], "-dj")){
+            DEBUG_JOYSTICK = 1;
         }
         i++;
     }
