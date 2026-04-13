@@ -28,8 +28,8 @@ static const char *names[NUM_ALL] = { "base", "shldr", "elbow", "xWrist", "yWris
 static float offsets[NUM_ALL] = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
 
 // ── Per-joint hard limits (degrees, AFTER offset) ────────────
-static float lim_lo[NUM_ALL] = {   0.0,  48.0, 100.0,   0.0,   0.0,   0.0 };
-static float lim_hi[NUM_ALL] = { 360.0, 190.0, 280.0, 360.0, 360.0, 360.0 };
+static float lim_lo[NUM_ALL] = {   0.0,  52.0, 100.0,   155.0,   0.0,   86 };
+static float lim_hi[NUM_ALL] = { 360.0, 150.0, 288.0, 360.0, 360.0, 193 };
 
 // ── Motion profile ───────────────────────────────────────────
 #define PROFILE_VEL  60
@@ -47,6 +47,15 @@ static bool  calMode = false;
 static char  rx[128];
 static int   ri = 0;
 static bool  rxActive = false;
+
+enum {
+  BASE,
+  SHOULDER,
+  ELBOW,
+  XWRIST,
+  YWRIST,
+  GRIP
+}
 
 // ──────────────────────────────────────────────────────────────
 //  Collision check (arm joints, user-space angles)
@@ -66,6 +75,32 @@ bool poseIsSafe(float *a) {
     return false;
   }
   return true;
+}
+
+
+//Joy stick graba
+float[] gripper_control(float[] pressed){
+  // 1 is closed
+    if(0) // Open
+      return {lim_hi[GRIP]};  
+    else 
+      return {lim_lo[GRIP]};
+}
+
+//
+float[] wrist_control(int x, int y){
+  //get current angles of the wrist
+  float degx = dxl.getPresentPosition(ids[XWRIST], UNIT_DEGREE);
+  float degy = dxl.getPresentPosition(ids[YWRIST], UNIT_DEGREE);
+  if (x > 900)
+    degx -= 5.0;
+  if (x < 100)
+    degx += 5.0;
+  if (y > 900)
+    degy -= 5.0;
+  if (y < 100)
+    degy += 5.0;
+  return {degx, degy};
 }
 
 // ── Servo helpers ────────────────────────────────────────────
@@ -248,8 +283,8 @@ void handleMessage(const char *msg) {
       Serial.println("HAND PARSE ERROR");
       return;
     }
-
-    driveGroup("HAND", angles, NUM_HAND, HAND_START);
+    
+    driveGroup("HAND", wrist_control(angles[0], angles[1]), NUM_HAND, HAND_START);
     return;
   }
 
@@ -263,8 +298,8 @@ void handleMessage(const char *msg) {
       Serial.println("GRIP PARSE ERROR");
       return;
     }
-
-    driveGroup("GRIP", angles, NUM_GRIP, GRIP_START);
+    
+    driveGroup("GRIP", gripper_control(angles[0]), NUM_GRIP, GRIP_START);
     return;
   }
 }
