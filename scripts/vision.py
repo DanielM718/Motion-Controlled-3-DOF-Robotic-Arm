@@ -98,9 +98,18 @@ while True:
     if not ret:
         break
 
+    frame = cv2.flip(frame, 1)
+
     h, w, _ = frame.shape
+
+    cx, cy = w // 2, h // 2
+    radius = min(w, h) // 2
+
+    cv2.circle(frame, (cx, cy), radius, (0, 255, 0), 2)
+    
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     results = hands.process(rgb)
+
 
     curr_time = time.time()
     fps = 1 / (curr_time - prev_time) if prev_time else 0

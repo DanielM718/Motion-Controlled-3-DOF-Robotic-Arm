@@ -43,7 +43,6 @@ bool serial_sender::send_angles_arm(float base, float shoulder, float elbow) {
     int n = snprintf(buf, sizeof(buf), "<ARM:%.1f,%.1f,%.1f>\n",
                      base, shoulder, elbow);
     ssize_t w = ::write(fd_, buf, n);
-    tcdrain(fd_);
     return w > 0;
 }
 
@@ -53,7 +52,6 @@ bool serial_sender::send_angles_wrist(float xWrist, float yWrist) {
     int n = snprintf(buf, sizeof(buf), "<HAND:%.1f,%.1f>\n",
                      xWrist, yWrist);
     ssize_t w = ::write(fd_, buf, n);
-    tcdrain(fd_);
     return w > 0;
 }
 
@@ -62,7 +60,6 @@ bool serial_sender::send_angles_grip(float grip) {
     char buf[96];
     int n = snprintf(buf, sizeof(buf), "<GRIP:%.1f>\n", grip);
     ssize_t w = ::write(fd_, buf, n);
-    tcdrain(fd_);
     return w > 0;
 }
 

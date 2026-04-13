@@ -137,7 +137,9 @@ bool parse_joystick(const std::string& line,
 
 int python_pipeline(){
 
-    serial_sender* joystick = new serial_sender("/dev/tty.usbmodem21101");
+    using clock = std::chrono::steady_clock;
+
+    serial_sender* joystick = new serial_sender("/dev/tty.usbmodem1101");
 
     FILE* pipe = popen("python3 -u scripts/vision.py 2>/dev/null", "r");
     if (!pipe) {
@@ -153,7 +155,20 @@ int python_pipeline(){
     std::string py_buffer;
     char py_buf[1024];
 
+    // transmit rate limits
+    auto last_joy_wrist_send = clock::now();
+    auto last_joy_grip_send  = clock::now();
+    auto last_arm_send       = clock::now();
+    auto last_vis_grip_send  = clock::now();
+
+    const auto JOY_WRIST_PERIOD = std::chrono::milliseconds(100); // 10 Hz
+    const auto JOY_GRIP_PERIOD  = std::chrono::milliseconds(100); // 10 Hz
+    const auto ARM_PERIOD       = std::chrono::milliseconds(100); // 10 Hz
+    const auto VIS_GRIP_PERIOD  = std::chrono::milliseconds(100); // 10 Hz
+
     while (true) {
+        auto now = clock::now();
+
         // polling joystick
         std::string joy_response = joystick->read_response();
         int joyx = 0, joyy = 0;
@@ -161,10 +176,20 @@ int python_pipeline(){
 
         if(parse_joystick(joy_response, joyx, joyy, pressed)){
             if(PINCH_JOYSTICK){
-                arm_control_unit.head_control(joyx, joyy, pressed);
+                if(now - last_joy_wrist_send >= JOY_WRIST_PERIOD){
+                    arm_control_unit.head_control(joyx, joyy);
+                    last_joy_wrist_send = now;
+                }
+                if(now - last_joy_grip_send >= JOY_GRIP_PERIOD){
+                    arm_control_unit.pinch_control(pressed);
+                    last_joy_grip_send = now;
+                }
             }
             else{
-                arm_control_unit.head_control(joyx, joyy);
+                if(now - last_joy_wrist_send >= JOY_WRIST_PERIOD){
+                    arm_control_unit.head_control(joyx, joyy);
+                    last_joy_wrist_send = now;
+                }
             }
         }
 
@@ -204,22 +229,32 @@ int python_pipeline(){
             }
 
             try {
+                now = clock::now();
+
                 if(name == "WRIST"){
                     float x = std::stof(x_str);
                     float y = std::stof(y_str);
+
                     if(DEBUG_VISION){
                         std::cout << "!VISION_WRIST -> x = " << x
                                   << ", y = " << y << "\n";
                     }
-                    arm_control(x, y);
+
+                    if(now - last_arm_send >= ARM_PERIOD){
+                        arm_control(x, y);
+                        last_arm_send = now;
+                    }
                 }
                 else{
                     float pinch = std::stof(x_str);
+
                     if(DEBUG_VISION){
                         std::cout << "!VISION_PINCH -> pinch = " << pinch << "\n";
                     }
-                    if(!PINCH_JOYSTICK){
+
+                    if(!PINCH_JOYSTICK && now - last_vis_grip_send >= VIS_GRIP_PERIOD){
                         arm_control_unit.pinch_control(pinch);
+                        last_vis_grip_send = now;
                     }
                 }
             } catch (const std::exception& e) {
