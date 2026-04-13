@@ -48,14 +48,14 @@ static char  rx[128];
 static int   ri = 0;
 static bool  rxActive = false;
 
-enum {
+enum PARTS {
   BASE,
   SHOULDER,
   ELBOW,
   XWRIST,
   YWRIST,
   GRIP
-}
+};
 
 // ──────────────────────────────────────────────────────────────
 //  Collision check (arm joints, user-space angles)
@@ -79,28 +79,17 @@ bool poseIsSafe(float *a) {
 
 
 //Joy stick graba
-float[] gripper_control(float[] pressed){
-  // 1 is closed
-    if(0) // Open
-      return {lim_hi[GRIP]};  
-    else 
-      return {lim_lo[GRIP]};
+void gripper_control(float pressed, float* out) {
+    out[0] = (pressed == 0) ? lim_hi[GRIP] : lim_lo[GRIP];
 }
 
-//
-float[] wrist_control(int x, int y){
-  //get current angles of the wrist
-  float degx = dxl.getPresentPosition(ids[XWRIST], UNIT_DEGREE);
-  float degy = dxl.getPresentPosition(ids[YWRIST], UNIT_DEGREE);
-  if (x > 900)
-    degx -= 5.0;
-  if (x < 100)
-    degx += 5.0;
-  if (y > 900)
-    degy -= 5.0;
-  if (y < 100)
-    degy += 5.0;
-  return {degx, degy};
+void wrist_control(float x, float y, float* out) {
+    out[0] = dxl.getPresentPosition(ids[XWRIST], UNIT_DEGREE);
+    out[1] = dxl.getPresentPosition(ids[YWRIST], UNIT_DEGREE);
+    if (x > 900) out[0] -= 5.0;
+    if (x < 100) out[0] += 5.0;
+    if (y > 900) out[1] -= 5.0;
+    if (y < 100) out[1] += 5.0;
 }
 
 // ── Servo helpers ────────────────────────────────────────────
@@ -283,8 +272,8 @@ void handleMessage(const char *msg) {
       Serial.println("HAND PARSE ERROR");
       return;
     }
-    
-    driveGroup("HAND", wrist_control(angles[0], angles[1]), NUM_HAND, HAND_START);
+    wrist_control(angles[0], angles[1], angles);
+    driveGroup("HAND", angles, NUM_HAND, HAND_START);
     return;
   }
 
@@ -298,8 +287,8 @@ void handleMessage(const char *msg) {
       Serial.println("GRIP PARSE ERROR");
       return;
     }
-    
-    driveGroup("GRIP", gripper_control(angles[0]), NUM_GRIP, GRIP_START);
+    gripper_control(angles[0], angles);
+    driveGroup("GRIP", angles, NUM_GRIP, GRIP_START);
     return;
   }
 }
