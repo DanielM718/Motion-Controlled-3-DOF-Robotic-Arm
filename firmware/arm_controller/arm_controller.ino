@@ -28,12 +28,12 @@ static const char *names[NUM_ALL] = { "base", "shldr", "elbow", "xWrist", "yWris
 static float offsets[NUM_ALL] = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
 
 // ── Per-joint hard limits (degrees, AFTER offset) ────────────
-static float lim_lo[NUM_ALL] = {   0.0,  52.0, 100.0,   155.0,   0.0,   86 };
-static float lim_hi[NUM_ALL] = { 360.0, 150.0, 288.0, 360.0, 360.0, 193 };
+static float lim_lo[NUM_ALL] = {   80.0,  52.0, 100.0,   155.0,   0.0,   86 };
+static float lim_hi[NUM_ALL] = { 260.0, 150.0, 288.0, 360.0, 360.0, 150 };
 
 // ── Motion profile ───────────────────────────────────────────
-#define PROFILE_VEL  70
-#define PROFILE_ACC  25
+#define PROFILE_VEL  80
+#define PROFILE_ACC  45
 
 #define COLLISION_MARGIN 15.0
 
@@ -86,10 +86,10 @@ void gripper_control(float pressed, float* out) {
 void wrist_control(float x, float y, float* out) {
     out[0] = dxl.getPresentPosition(ids[XWRIST], UNIT_DEGREE);
     out[1] = dxl.getPresentPosition(ids[YWRIST], UNIT_DEGREE);
-    if (x > 900) out[0] -= 10.0;
-    if (x < 100) out[0] += 10.0;
-    if (y > 900) out[1] -= 10.0;
-    if (y < 100) out[1] += 10.0;
+    if (x > 900) out[0] += 15.0;
+    if (x < 100) out[0] -= 15.0;
+    if (y > 900) out[1] -= 15.0;
+    if (y < 100) out[1] += 15.0;
 }
 
 // ── Servo helpers ────────────────────────────────────────────
