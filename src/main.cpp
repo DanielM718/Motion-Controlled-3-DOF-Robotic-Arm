@@ -14,8 +14,8 @@
 
 control_unit arm_control_unit;
 
-constexpr int GRID_W = 41;
-constexpr int GRID_H = 41;
+constexpr int GRID_W = 81;
+constexpr int GRID_H = 81;
 
 constexpr double FRAME_W = 640.0;
 constexpr double FRAME_H = 480.0;
@@ -139,7 +139,7 @@ int python_pipeline(){
 
     using clock = std::chrono::steady_clock;
 
-    serial_sender* joystick = new serial_sender("/dev/tty.usbmodem1101");
+    serial_sender* joystick = new serial_sender("/dev/tty.usbmodem1401");
 
     FILE* pipe = popen("python3 -u scripts/vision.py 2>/dev/null", "r");
     if (!pipe) {

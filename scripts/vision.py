@@ -17,27 +17,56 @@ hands = mp_hands.Hands(
 
 cap = cv2.VideoCapture(0)
 
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+
 wrist_angle_history = deque(maxlen=10)
 
-GRID_SIZE = 41
+GRID_SIZE = 81
 
 FINGER_TIPS =    [8, 12, 16, 20]
 FINGER_KNUCKLES= [6, 10, 14, 18]
 FINGER_NAMES =   ["Index", "Middle", "Ring", "Pinky"]
 
+def is_closed_fist(landmarks):
+    wrist = landmarks[0]
+
+    finger_pairs = [(8,5), (12,9), (16,13), (20,17)]
+
+    curled = 0
+    for tip_id, mcp_id in finger_pairs:
+        tip = landmarks[tip_id]
+        mcp = landmarks[mcp_id]
+
+        tip_dist = ((tip.x - wrist.x)**2 + (tip.y - wrist.y)**2) ** 0.5
+        mcp_dist = ((mcp.x - wrist.x)**2 + (mcp.y - wrist.y)**2) ** 0.5
+
+        if tip_dist < mcp_dist * 1.2:
+            curled += 1
+
+    # thumb
+    thumb_tip = landmarks[4]
+    thumb_base = landmarks[2]
+
+    thumb_tip_dist = ((thumb_tip.x - wrist.x)**2 + (thumb_tip.y - wrist.y)**2) ** 0.5
+    thumb_base_dist = ((thumb_base.x - wrist.x)**2 + (thumb_base.y - wrist.y)**2) ** 0.5
+
+    thumb_closed = thumb_tip_dist < thumb_base_dist * 1.2
+
+    return curled >= 3 and thumb_closed
+
 def draw_grid(frame, rows, cols):
     h, w, _ = frame.shape
-    cell_w = w // cols
-    cell_h = h // rows
     for i in range(1, cols):
-        cv2.line(frame, (i * cell_w, 0), (i * cell_w, h), (50,50,50), 1)
+        x = int(i * w / cols)
+        cv2.line(frame, (x, 0), (x, h), (50,50,50), 1)
     for i in range(1, rows):
-        cv2.line(frame, (0, i * cell_h), (w, i * cell_h), (50,50,50), 1)
-    return cell_w, cell_h
+        y = int(i * h / rows)
+        cv2.line(frame, (0, y), (w, y), (50,50,50), 1)
 
-def get_grid_position(x, y):
-    col = max(1, min(GRID_SIZE, int(x / (1.0 / GRID_SIZE)) + 1))
-    row = max(1, min(GRID_SIZE, int(y / (1.0 / GRID_SIZE)) + 1))
+def get_grid_position(px, py, w, h):
+    col = max(1, min(GRID_SIZE, int(px * GRID_SIZE / w) + 1))
+    row = max(1, min(GRID_SIZE, int(py * GRID_SIZE / h) + 1))
     return col, row
 
 def get_palm_facing(landmarks, handedness):
@@ -52,24 +81,36 @@ def get_palm_facing(landmarks, handedness):
     else:
         return "PALM" if cross < 0 else "BACK"
 
-def get_finger_states(landmarks, handedness, facing):
+def get_finger_states(landmarks, handedness=None, facing=None):
     states = {}
-    thumb_tip = landmarks[4]
-    thumb_knuckle = landmarks[3]
-    if handedness == "Right":
-        if facing == "PALM":
-            states["Thumb"] = "OPEN" if thumb_tip.x < thumb_knuckle.x else "CLOSED"
-        else:
-            states["Thumb"] = "OPEN" if thumb_tip.x > thumb_knuckle.x else "CLOSED"
-    else:
-        if facing == "PALM":
-            states["Thumb"] = "OPEN" if thumb_tip.x > thumb_knuckle.x else "CLOSED"
-        else:
-            states["Thumb"] = "OPEN" if thumb_tip.x < thumb_knuckle.x else "CLOSED"
-    for tip_id, knuckle_id, name in zip(FINGER_TIPS, FINGER_KNUCKLES, FINGER_NAMES):
+    wrist = landmarks[0]
+
+    fingers = [
+        (8, 6, "Index"),
+        (12, 10, "Middle"),
+        (16, 14, "Ring"),
+        (20, 18, "Pinky"),
+    ]
+
+    for tip_id, pip_id, name in fingers:
         tip = landmarks[tip_id]
-        knuckle = landmarks[knuckle_id]
-        states[name] = "OPEN" if tip.y < knuckle.y else "CLOSED"
+        pip = landmarks[pip_id]
+
+        tip_dist = ((tip.x - wrist.x)**2 + (tip.y - wrist.y)**2) ** 0.5
+        pip_dist = ((pip.x - wrist.x)**2 + (pip.y - wrist.y)**2) ** 0.5
+
+        states[name] = "OPEN" if tip_dist > pip_dist * 1.12 else "CLOSED"
+
+    # Thumb: simple distance-based check
+    thumb_tip = landmarks[4]
+    thumb_ip  = landmarks[3]
+    thumb_mcp = landmarks[2]
+
+    tip_to_mcp = ((thumb_tip.x - thumb_mcp.x)**2 + (thumb_tip.y - thumb_mcp.y)**2) ** 0.5
+    ip_to_mcp  = ((thumb_ip.x - thumb_mcp.x)**2 + (thumb_ip.y - thumb_mcp.y)**2) ** 0.5
+
+    states["Thumb"] = "OPEN" if tip_to_mcp > ip_to_mcp * 1.08 else "CLOSED"
+
     return states
 
 def get_pinch_distance(landmarks):
@@ -78,11 +119,8 @@ def get_pinch_distance(landmarks):
     return ((thumb.x - index.x)**2 + (thumb.y - index.y)**2) ** 0.5
 
 def is_open_hand(states, landmarks):
-    if not all(s == "OPEN" for s in states.values()):
-        return False
-    if get_pinch_distance(landmarks) < 0.1:
-        return False
-    return True
+    open_count = sum(1 for s in states.values() if s == "OPEN")
+    return open_count >= 4
 
 def get_wrist_angle(landmarks):
     wrist = landmarks[0]
@@ -98,6 +136,8 @@ while True:
     if not ret:
         break
 
+    frame = cv2.resize(frame, (640, 480))
+
     frame = cv2.flip(frame, 1)
 
     h, w, _ = frame.shape
@@ -106,6 +146,7 @@ while True:
     radius = min(w, h) // 2
 
     cv2.circle(frame, (cx, cy), radius, (0, 255, 0), 2)
+    cv2.line(frame, (0, h//2), (w, h//2), (255, 0, 0), 2)
     
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     results = hands.process(rgb)
@@ -115,7 +156,7 @@ while True:
     fps = 1 / (curr_time - prev_time) if prev_time else 0
     prev_time = curr_time
 
-    cell_w, cell_h = draw_grid(frame, GRID_SIZE, GRID_SIZE)
+    draw_grid(frame, GRID_SIZE, GRID_SIZE)
 
     cv2.putText(frame, f'FPS: {int(fps)}', (10, 30),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,255,0), 2)
@@ -136,14 +177,16 @@ while True:
             finger_states = get_finger_states(lm, handedness, facing)
 
             gesture = "OPEN" if is_open_hand(finger_states, lm) else "CLOSED"
+
             gesture_color = (0,255,0) if gesture == "OPEN" else (0,0,255)
 
-            col, row = get_grid_position(wrist.x, wrist.y)
+            col, row = get_grid_position(wx, wy, w, h)
 
-            cell_x1 = (col - 1) * cell_w
-            cell_y1 = (row - 1) * cell_h
-            cell_x2 = col * cell_w
-            cell_y2 = row * cell_h
+            cell_x1 = int((col - 1) * w / GRID_SIZE)
+            cell_y1 = int((row - 1) * h / GRID_SIZE)
+            cell_x2 = int(col * w / GRID_SIZE)
+            cell_y2 = int(row * h / GRID_SIZE)
+
             cv2.rectangle(frame, (cell_x1, cell_y1), (cell_x2, cell_y2),
                          (0,255,255), 2)
 

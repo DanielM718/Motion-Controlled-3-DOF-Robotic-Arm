@@ -13,7 +13,7 @@ control_unit::control_unit(){
     elbow = new joint(vector(0.0, ARM_LENGTH, 0.0), 0.0f, 0.0f, 180.0f);
     wrist = new joint(vector(0.0, ARM_LENGTH*2, 0.0), 0.0f, 0.0f, 180.0f);
 
-    robot = new serial_sender("/dev/tty.usbmodem4");
+    robot = new serial_sender("/dev/tty.usbmodem1101");
 }
 
 void control_unit::set_debug_response(int DEBUG_RESPONSE){
@@ -30,7 +30,7 @@ int control_unit::base_control(){
     const float y = TARGET_POS.y;
     float rad = std::atan2(y, x);
     float degree = rad * (180*M_1_PI); // convert to degree
-    degree += 180;
+    degree += 90;//180;
     return static_cast<int>(degree);
 }
 
