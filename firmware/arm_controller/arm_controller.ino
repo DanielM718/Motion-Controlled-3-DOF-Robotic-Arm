@@ -86,10 +86,10 @@ void gripper_control(float pressed, float* out) {
 void wrist_control(float x, float y, float* out) {
     out[0] = dxl.getPresentPosition(ids[XWRIST], UNIT_DEGREE);
     out[1] = dxl.getPresentPosition(ids[YWRIST], UNIT_DEGREE);
-    if (x > 900) out[0] += 15.0;
-    if (x < 100) out[0] -= 15.0;
-    if (y > 900) out[1] -= 15.0;
-    if (y < 100) out[1] += 15.0;
+    if (x > 900) out[0] -= 15.0;
+    if (x < 100) out[0] += 15.0;
+    if (y > 900) out[1] += 15.0;
+    if (y < 100) out[1] -= 15.0;
 }
 
 // ── Servo helpers ────────────────────────────────────────────
